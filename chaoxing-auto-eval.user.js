@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         超星学习通一键评教
 // @namespace    https://five-plus-one.github.io/ChaoxingXuexitongAutoEvaluationTeaching/
-// @version      2.8.0
+// @version      2.9.0
 // @description  批量自动评教，打开表单页自动填答，确认后提交
 // @author       five-plus-one
 // @match        *://*.chaoxing.com/*
@@ -319,7 +319,7 @@
     function startBatch() {
         const items = findPendingLinks();
         if (items.length === 0) { showToast('没有待评价的项目', 'warn'); return; }
-        setBatch({ active: true, total: items.length, done: 0, skip: 0, targetPage: 1, currentTeacher: items[0].teacher, currentCourse: items[0].course });
+        setBatch({ active: true, total: items.length, done: 0, skip: 0, currentTeacher: items[0].teacher, currentCourse: items[0].course });
         showToast(`开始：共 ${items.length} 个`, 'info', 2000);
         setTimeout(() => items[0].link.click(), 600);
     }
@@ -382,67 +382,45 @@
         else window.location.href = '/pj/newesReception/hehaiRatedHome';
     }
 
-    /* ── 列表页继续（支持翻页） ───────────────────────────── */
-
-    async function waitForPageChange(oldBodyHtml) {
-        // 轮询等待表格内容变化（兼容 AJAX 翻页和整页刷新）
-        for (let i = 0; i < 30; i++) {
-            await sleep(500);
-            const newHtml = document.querySelector('table tbody')?.innerHTML || '';
-            if (newHtml !== oldBodyHtml && newHtml.length > 0) return true;
-        }
-        return false;
-    }
-
-    async function goToPage(page) {
-        const input = document.getElementById('currentPageNo');
-        if (input) input.value = page;
-        const oldHtml = document.querySelector('table tbody')?.innerHTML || '';
-
-        if (typeof submitForm === 'function') submitForm();
-        else { const form = document.getElementById('formId'); if (form) form.submit(); }
-
-        // 等待内容更新
-        const changed = await waitForPageChange(oldHtml);
-        if (changed) {
-            // 内容已更新，继续处理
-            continueOnListPage();
-        }
-    }
+    /* ── 列表页继续 ─────────────────────────────────────── */
 
     async function continueOnListPage() {
         const state = getBatch();
         if (!state || !state.active) return;
 
-        // 检查当前页是否是目标页
-        const currentPageInput = document.getElementById('currentPageNo');
-        const currentPage = currentPageInput ? parseInt(currentPageInput.value) || 1 : 1;
-        const target = state.targetPage || 1;
-
-        if (currentPage !== target) {
-            showToast(`跳转到第 ${target} 页...`, 'info', 1500);
-            goToPage(target);
-            return;
-        }
-
         const pending = findPendingLinks();
 
         if (pending.length > 0) {
+            // 当前页有待评项，处理第一个
             updatePanelStats();
             state.currentTeacher = pending[0].teacher;
             state.currentCourse = pending[0].course;
-            state.total = (state.done || 0) + (state.skip || 0) + pending.length;
             setBatch(state);
-            showToast(`(${state.done + state.skip + 1}/${state.total}) ${pending[0].teacher}`, 'info', 2000);
+            showToast(`(${state.done + state.skip + 1}) ${pending[0].teacher}`, 'info', 2000);
             setTimeout(() => pending[0].link.click(), 1200);
             return;
         }
 
-        // 当前页没有待评项，翻到下一页
-        state.targetPage = target + 1;
-        setBatch(state);
-        showToast('当前页已完成，翻到下一页...', 'info', 1500);
-        goToPage(target + 1);
+        // 当前页没有待评项，尝试翻到下一页
+        const nextPageBtn = document.querySelector('.xl-nextPage');
+        if (nextPageBtn && !nextPageBtn.classList.contains('xl-disabled')) {
+            const oldHtml = document.querySelector('table tbody')?.innerHTML || '';
+            nextPageBtn.click();
+            // 等待内容更新
+            for (let i = 0; i < 20; i++) {
+                await sleep(500);
+                const newHtml = document.querySelector('table tbody')?.innerHTML || '';
+                if (newHtml !== oldHtml && newHtml.length > 0) break;
+            }
+            // 继续处理
+            continueOnListPage();
+            return;
+        }
+
+        // 没有下一页了，完成
+        clearBatch();
+        showToast(`批量评教完成！完成 ${state.done} 个，跳过 ${state.skip} 个`, 'success', 5000);
+        updatePanelStats();
     }
 
     /* ── Init：优先检测待评价链接，再检测表单 ────────────── */
