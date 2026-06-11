@@ -405,30 +405,28 @@
     /* ── Init：优先检测待评价链接，再检测表单 ────────────── */
 
     async function init() {
-        // 检查是否在表单页（从列表页跳转过来的，batch state 有效）
+        // 表单页：有 batch state 就处理
         if ($('.testBox.groupTarget')) {
             const state = getBatch();
             if (state && state.active) {
                 processFormPage();
-                return;
             }
+            return;
         }
 
-        // 检测列表页
+        // 列表页：等待内容加载
         for (let attempt = 0; attempt < 30; attempt++) {
             const pending = findPendingLinks();
             if (pending.length > 0) {
-                // 列表页：清除旧的 batch 状态，只显示面板等用户操作
-                clearBatch();
                 createPanel();
+                // 有进行中的 batch → 自动继续下一项
+                const state = getBatch();
+                if (state && state.active) {
+                    continueOnListPage();
+                }
                 return;
             }
             await sleep(500);
-        }
-
-        // 轮询结束
-        if (window.parent === window) {
-            showToast('请先点击左侧"评价问卷"进入评教列表', 'warn', 5000);
         }
     }
 
