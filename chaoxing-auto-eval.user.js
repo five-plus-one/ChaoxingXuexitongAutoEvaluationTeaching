@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         超星学习通一键评教
 // @namespace    https://five-plus-one.github.io/ChaoxingXuexitongAutoEvaluationTeaching/
-// @version      2.9.0
+// @version      3.0.0
 // @description  批量自动评教，打开表单页自动填答，确认后提交
 // @author       five-plus-one
 // @match        *://*.chaoxing.com/*
@@ -426,23 +426,20 @@
     /* ── Init：优先检测待评价链接，再检测表单 ────────────── */
 
     async function init() {
-        // 表单页：有 batch state 就处理
+        // 表单页
         if ($('.testBox.groupTarget')) {
             const state = getBatch();
-            if (state && state.active) {
-                processFormPage();
-            }
+            if (state && state.active) processFormPage();
             return;
         }
 
-        // 列表页：等待内容加载
+        // 列表页：等内容加载（有待评项或有分页按钮）
         for (let attempt = 0; attempt < 30; attempt++) {
-            const pending = findPendingLinks();
-            if (pending.length > 0) {
+            if (findPendingLinks().length > 0 || document.querySelector('.xl-nextPage')) {
                 createPanel();
-                // 有进行中的 batch → 自动继续下一项
                 const state = getBatch();
                 if (state && state.active) {
+                    // 有活跃batch → 有待评就处理，没有就翻页找
                     continueOnListPage();
                 }
                 return;
