@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         超星学习通一键评教
 // @namespace    https://five-plus-one.github.io/ChaoxingXuexitongAutoEvaluationTeaching/
-// @version      2.3.0
+// @version      2.4.0
 // @description  批量自动评教，打开表单页自动填答，确认后提交
 // @author       five-plus-one
 // @match        *://*.chaoxing.com/*
@@ -382,24 +382,57 @@
         else window.location.href = '/pj/newesReception/hehaiRatedHome';
     }
 
-    /* ── 列表页继续 ─────────────────────────────────────── */
+    /* ── 列表页继续（支持翻页） ───────────────────────────── */
 
-    function continueOnListPage() {
+    async function continueOnListPage() {
         const state = getBatch();
         if (!state || !state.active) return;
+
         const pending = findPendingLinks();
-        if (pending.length === 0) {
-            clearBatch();
-            showToast(`批量评教完成！完成 ${state.done} 个，跳过 ${state.skip} 个`, 'success', 5000);
+
+        if (pending.length > 0) {
+            // 当前页有待评价项，处理第一个
             updatePanelStats();
+            state.currentTeacher = pending[0].teacher;
+            state.currentCourse = pending[0].course;
+            state.total = (state.done || 0) + (state.skip || 0) + pending.length;
+            setBatch(state);
+            showToast(`(${state.done + state.skip + 1}/${state.total}) ${pending[0].teacher}`, 'info', 2000);
+            setTimeout(() => pending[0].link.click(), 1200);
             return;
         }
+
+        // 当前页没有待评价项，尝试翻到下一页
+        const nextPageBtn = document.querySelector('.xl-nextPage');
+        if (nextPageBtn && !nextPageBtn.classList.contains('xl-disabled')) {
+            nextPageBtn.click();
+            // 等待下一页加载
+            await sleep(2000);
+            // 重新检测
+            const newPending = findPendingLinks();
+            if (newPending.length > 0) {
+                continueOnListPage();
+            } else {
+                // 下一页也没有，再翻
+                const nextBtn2 = document.querySelector('.xl-nextPage');
+                if (nextBtn2 && !nextBtn2.classList.contains('xl-disabled')) {
+                    nextBtn2.click();
+                    await sleep(2000);
+                    continueOnListPage();
+                } else {
+                    // 真的没有了
+                    clearBatch();
+                    showToast(`批量评教完成！完成 ${state.done} 个，跳过 ${state.skip} 个`, 'success', 5000);
+                    updatePanelStats();
+                }
+            }
+            return;
+        }
+
+        // 没有下一页了，完成
+        clearBatch();
+        showToast(`批量评教完成！完成 ${state.done} 个，跳过 ${state.skip} 个`, 'success', 5000);
         updatePanelStats();
-        state.currentTeacher = pending[0].teacher;
-        state.currentCourse = pending[0].course;
-        setBatch(state);
-        showToast(`(${state.done + state.skip + 1}/${state.total}) ${pending[0].teacher}`, 'info', 2000);
-        setTimeout(() => pending[0].link.click(), 1200);
     }
 
     /* ── Init：优先检测待评价链接，再检测表单 ────────────── */
