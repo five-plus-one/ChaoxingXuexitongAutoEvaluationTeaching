@@ -85,90 +85,175 @@
         return items;
     }
 
-    /* ── 自动填答 ───────────────────────────────────────── */
+    /* ── 自动填答（返回答案列表） ───────────────────────── */
 
     function autoFillForm() {
         let filled = 0, totalScore = 0;
+        const answers = [];
+
         $$('.testBox.groupTarget').forEach(group => {
+            if (getComputedStyle(group).display === 'none') return;
+
+            const titleEl = group.querySelector('.target-title');
+            const qTitle = titleEl ? (titleEl.getAttribute('value') || titleEl.textContent || '').trim() : '未知题目';
+            const num = group.querySelector('.tmnum')?.textContent?.trim() || '';
+
             const radios = $$('input[type="radio"]', group);
             if (radios.length > 0) {
                 if (!radios[0].checked) radios[0].click();
-                totalScore += parseFloat(radios[0].getAttribute('score')) || 0;
+                const score = parseFloat(radios[0].getAttribute('score')) || 0;
+                totalScore += score;
+                const answer = radios[0].closest('label')?.querySelector('.target-zh')?.textContent?.trim() || radios[0].value;
+                answers.push({ num, title: qTitle, answer, score });
                 filled++;
                 return;
             }
+
             const checkboxes = $$('input[type="checkbox"]', group);
             if (checkboxes.length > 0) {
-                const title = (group.querySelector('.target-title')?.getAttribute('value') || '');
                 let clicked = false;
-                if (title.includes('教材') || title.includes('选用') || title.includes('情况')) {
+                const selectedTexts = [];
+                if (qTitle.includes('教材') || qTitle.includes('选用') || qTitle.includes('情况')) {
                     checkboxes.forEach(cb => {
-                        const text = cb.closest('label')?.textContent || '';
+                        const text = cb.closest('label')?.textContent?.trim() || '';
                         if (CONFIG.positiveKeywords.some(kw => text.includes(kw)) && !cb.checked) {
                             cb.click(); clicked = true;
+                            selectedTexts.push(text);
                         }
                     });
                 }
                 if (!clicked && checkboxes.length > 0) {
                     const lastCb = checkboxes[checkboxes.length - 1];
                     if (!lastCb.checked) lastCb.click();
+                    selectedTexts.push(lastCb.closest('label')?.textContent?.trim() || lastCb.value);
                 }
+                answers.push({ num, title: qTitle, answer: selectedTexts.join('、') || '已选', score: 0 });
                 filled++;
                 return;
             }
+
             const textarea = group.querySelector('textarea');
             if (textarea && !textarea.value.trim()) {
                 textarea.value = CONFIG.comment;
                 textarea.dispatchEvent(new Event('input', { bubbles: true }));
                 textarea.dispatchEvent(new Event('change', { bubbles: true }));
+                answers.push({ num, title: qTitle, answer: CONFIG.comment, score: 0 });
                 filled++;
             }
         });
-        return { filled, totalScore };
+
+        return { filled, totalScore, answers };
     }
 
-    /* ── 确认弹窗 ───────────────────────────────────────── */
+    /* ── 确认弹窗（10秒倒计时 + 答案预览 + 暂停） ──────── */
 
-    function showConfirmModal({ teacher, course, filled, totalScore, index, total }) {
+    const COUNTDOWN_SEC = 10;
+
+    function showConfirmModal({ teacher, course, filled, totalScore, index, total, answers }) {
         return new Promise(resolve => {
             const old = document.getElementById('ae-confirm-overlay');
             if (old) old.remove();
+
+            let countdown = COUNTDOWN_SEC;
+            let paused = false;
+            let timer = null;
+
+            const answersHtml = (answers || []).map((a, i) =>
+                `<div class="ae-ans-item"><span class="ae-ans-num">${a.num || (i + 1)}</span><div class="ae-ans-body"><div class="ae-ans-q">${a.title}</div><div class="ae-ans-a">→ ${a.answer}${a.score > 0 ? ' <span class="ae-ans-score">(' + a.score + '分)</span>' : ''}</div></div></div>`
+            ).join('');
+
             const overlay = document.createElement('div');
             overlay.id = 'ae-confirm-overlay';
             overlay.innerHTML = `
                 <style>
-                    #ae-confirm-overlay{position:fixed;inset:0;z-index:2147483647;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;font-family:system-ui,-apple-system,sans-serif}
-                    #ae-confirm-overlay .ae-modal{background:#fff;border-radius:16px;padding:28px 32px;width:400px;max-width:90vw;box-shadow:0 20px 60px rgba(0,0,0,.3);color:#333}
-                    #ae-confirm-overlay h3{margin:0 0 16px;font-size:18px}
-                    #ae-confirm-overlay .ae-row{display:flex;padding:10px 0;border-bottom:1px solid #f0f0f0;font-size:14px}
-                    #ae-confirm-overlay .ae-lbl{color:#999;width:70px;flex-shrink:0}
-                    #ae-confirm-overlay .ae-val{color:#333;font-weight:500}
-                    #ae-confirm-overlay .ae-score{margin:16px 0;padding:14px;background:#f0fdf4;border-radius:10px;text-align:center;font-size:15px;color:#16a34a;font-weight:700}
-                    #ae-confirm-overlay .ae-btns{display:flex;gap:10px;margin-top:20px}
-                    #ae-confirm-overlay .ae-btns button{flex:1;padding:13px;border:none;border-radius:10px;font-size:15px;font-weight:600;cursor:pointer}
+                    #ae-confirm-overlay{position:fixed;inset:0;z-index:2147483647;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;font-family:system-ui,-apple-system,sans-serif}
+                    #ae-confirm-overlay .ae-modal{background:#fff;border-radius:16px;width:520px;max-width:92vw;max-height:85vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.3);color:#333}
+                    #ae-confirm-overlay .ae-head{padding:24px 28px 0;flex-shrink:0}
+                    #ae-confirm-overlay .ae-head h3{margin:0 0 12px;font-size:18px;display:flex;align-items:center;gap:10px}
+                    #ae-confirm-overlay .ae-head .ae-countdown{display:inline-flex;align-items:center;gap:4px;background:#f3f4f6;border-radius:8px;padding:4px 10px;font-size:13px;font-weight:600;color:#666;cursor:pointer;user-select:none}
+                    #ae-confirm-overlay .ae-head .ae-countdown.paused{background:#fef3c7;color:#d97706}
+                    #ae-confirm-overlay .ae-head .ae-countdown svg{width:14px;height:14px}
+                    #ae-confirm-overlay .ae-info{display:flex;gap:16px;font-size:13px;color:#666;margin-top:8px;flex-wrap:wrap}
+                    #ae-confirm-overlay .ae-info span{display:flex;align-items:center;gap:4px}
+                    #ae-confirm-overlay .ae-score-bar{margin:16px 28px 0;padding:12px 16px;background:#f0fdf4;border-radius:10px;text-align:center;font-size:15px;color:#16a34a;font-weight:700;flex-shrink:0}
+                    #ae-confirm-overlay .ae-answers{flex:1;overflow-y:auto;padding:16px 28px;min-height:0}
+                    #ae-confirm-overlay .ae-ans-item{display:flex;gap:10px;padding:8px 0;border-bottom:1px solid #f5f5f5;font-size:13px}
+                    #ae-confirm-overlay .ae-ans-item:last-child{border-bottom:none}
+                    #ae-confirm-overlay .ae-ans-num{flex-shrink:0;width:22px;height:22px;background:#f3f4f6;border-radius:6px;display:flex;align-items:center;justify-content:center;font-weight:600;color:#999;font-size:11px}
+                    #ae-confirm-overlay .ae-ans-body{flex:1;min-width:0}
+                    #ae-confirm-overlay .ae-ans-q{color:#333;font-weight:500;line-height:1.4}
+                    #ae-confirm-overlay .ae-ans-a{color:#16a34a;margin-top:2px;line-height:1.4;word-break:break-all}
+                    #ae-confirm-overlay .ae-ans-score{color:#999;font-weight:400}
+                    #ae-confirm-overlay .ae-foot{padding:16px 28px 24px;border-top:1px solid #f0f0f0;flex-shrink:0}
+                    #ae-confirm-overlay .ae-btns{display:flex;gap:10px}
+                    #ae-confirm-overlay .ae-btns button{flex:1;padding:12px;border:none;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;transition:all .15s}
+                    #ae-confirm-overlay .ae-btns button:hover{transform:translateY(-1px)}
                     #ae-confirm-overlay .ae-btns .ae-yes{background:#000;color:#fff}
                     #ae-confirm-overlay .ae-btns .ae-skip{background:#f3f4f6;color:#666}
                     #ae-confirm-overlay .ae-btns .ae-stop{background:#fef2f2;color:#dc2626}
-                    #ae-confirm-overlay .ae-prog{text-align:center;color:#999;font-size:12px;margin-top:14px}
+                    #ae-confirm-overlay .ae-prog{text-align:center;color:#999;font-size:12px;margin-top:12px}
                 </style>
                 <div class="ae-modal">
-                    <h3>确认提交评教</h3>
-                    <div class="ae-row"><span class="ae-lbl">教师</span><span class="ae-val">${teacher || '未知'}</span></div>
-                    <div class="ae-row"><span class="ae-lbl">课程</span><span class="ae-val">${course || '未知'}</span></div>
-                    <div class="ae-row"><span class="ae-lbl">已填</span><span class="ae-val">${filled} 道题目</span></div>
-                    <div class="ae-score">预估总分：${totalScore} 分</div>
-                    <div class="ae-btns">
-                        <button class="ae-yes" id="ae-cfm-yes">确认提交</button>
-                        <button class="ae-skip" id="ae-cfm-skip">跳过</button>
-                        <button class="ae-stop" id="ae-cfm-stop">停止</button>
+                    <div class="ae-head">
+                        <h3>
+                            确认提交评教
+                            <span class="ae-countdown" id="ae-cd" title="点击暂停/继续">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                                <span id="ae-cd-num">${COUNTDOWN_SEC}</span>s
+                            </span>
+                        </h3>
+                        <div class="ae-info">
+                            <span>教师：${teacher || '未知'}</span>
+                            <span>课程：${course || '未知'}</span>
+                            <span>${filled} 道题</span>
+                        </div>
                     </div>
-                    <div class="ae-prog">${index + 1} / ${total}</div>
+                    <div class="ae-score-bar">预估总分：${totalScore} 分</div>
+                    <div class="ae-answers">${answersHtml || '<div style="color:#999;text-align:center;padding:20px">无题目数据</div>'}</div>
+                    <div class="ae-foot">
+                        <div class="ae-btns">
+                            <button class="ae-yes" id="ae-cfm-yes">确认提交</button>
+                            <button class="ae-skip" id="ae-cfm-skip">跳过</button>
+                            <button class="ae-stop" id="ae-cfm-stop">停止</button>
+                        </div>
+                        <div class="ae-prog">${index + 1} / ${total}</div>
+                    </div>
                 </div>
             `;
             document.body.appendChild(overlay);
-            overlay.querySelector('#ae-cfm-yes').onclick = () => { overlay.remove(); resolve('submit'); };
-            overlay.querySelector('#ae-cfm-skip').onclick = () => { overlay.remove(); resolve('skip'); };
-            overlay.querySelector('#ae-cfm-stop').onclick = () => { overlay.remove(); resolve('stop'); };
+
+            const cdEl = overlay.querySelector('#ae-cd');
+            const cdNum = overlay.querySelector('#ae-cd-num');
+
+            function cleanup() {
+                if (timer) clearInterval(timer);
+                overlay.remove();
+            }
+
+            function startTimer() {
+                timer = setInterval(() => {
+                    if (paused) return;
+                    countdown--;
+                    cdNum.textContent = countdown;
+                    if (countdown <= 0) {
+                        cleanup();
+                        resolve('submit');
+                    }
+                }, 1000);
+            }
+
+            cdEl.addEventListener('click', (e) => {
+                e.stopPropagation();
+                paused = !paused;
+                cdEl.classList.toggle('paused', paused);
+                cdNum.textContent = paused ? '⏸' : countdown;
+            });
+
+            overlay.querySelector('#ae-cfm-yes').onclick = () => { cleanup(); resolve('submit'); };
+            overlay.querySelector('#ae-cfm-skip').onclick = () => { cleanup(); resolve('skip'); };
+            overlay.querySelector('#ae-cfm-stop').onclick = () => { cleanup(); resolve('stop'); };
+
+            startTimer();
         });
     }
 
@@ -253,11 +338,11 @@
             if (t.startsWith('课程名称')) course = t.replace('课程名称：', '').trim();
         });
 
-        const { filled, totalScore } = autoFillForm();
+        const { filled, totalScore, answers } = autoFillForm();
         const result = await showConfirmModal({
             teacher: teacher || state.currentTeacher,
             course: course || state.currentCourse,
-            filled, totalScore,
+            filled, totalScore, answers,
             index: state.done + state.skip, total: state.total,
         });
 
