@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         超星学习通一键评教
 // @namespace    https://five-plus-one.github.io/ChaoxingXuexitongAutoEvaluationTeaching/
-// @version      2.7.0
+// @version      2.8.0
 // @description  批量自动评教，打开表单页自动填答，确认后提交
 // @author       five-plus-one
 // @match        *://*.chaoxing.com/*
@@ -384,19 +384,37 @@
 
     /* ── 列表页继续（支持翻页） ───────────────────────────── */
 
-    function goToPage(page) {
-        // 直接修改 currentPageNo 并提交表单
+    async function waitForPageChange(oldBodyHtml) {
+        // 轮询等待表格内容变化（兼容 AJAX 翻页和整页刷新）
+        for (let i = 0; i < 30; i++) {
+            await sleep(500);
+            const newHtml = document.querySelector('table tbody')?.innerHTML || '';
+            if (newHtml !== oldBodyHtml && newHtml.length > 0) return true;
+        }
+        return false;
+    }
+
+    async function goToPage(page) {
         const input = document.getElementById('currentPageNo');
         if (input) input.value = page;
+        const oldHtml = document.querySelector('table tbody')?.innerHTML || '';
+
         if (typeof submitForm === 'function') submitForm();
         else { const form = document.getElementById('formId'); if (form) form.submit(); }
+
+        // 等待内容更新
+        const changed = await waitForPageChange(oldHtml);
+        if (changed) {
+            // 内容已更新，继续处理
+            continueOnListPage();
+        }
     }
 
     async function continueOnListPage() {
         const state = getBatch();
         if (!state || !state.active) return;
 
-        // 检查当前页是否是目标页，不是就跳过去
+        // 检查当前页是否是目标页
         const currentPageInput = document.getElementById('currentPageNo');
         const currentPage = currentPageInput ? parseInt(currentPageInput.value) || 1 : 1;
         const target = state.targetPage || 1;
@@ -404,7 +422,7 @@
         if (currentPage !== target) {
             showToast(`跳转到第 ${target} 页...`, 'info', 1500);
             goToPage(target);
-            return; // 页面会刷新，脚本会重新 init
+            return;
         }
 
         const pending = findPendingLinks();
@@ -425,7 +443,6 @@
         setBatch(state);
         showToast('当前页已完成，翻到下一页...', 'info', 1500);
         goToPage(target + 1);
-        // 页面刷新后脚本会重新 init，自动继续
     }
 
     /* ── Init：优先检测待评价链接，再检测表单 ────────────── */
