@@ -348,15 +348,32 @@
 
         if (result === 'submit') {
             state.done++; setBatch(state);
-            await sleep(600);
+            await sleep(500);
+
+            // 调用页面的 save 函数
             if (typeof save === 'function') save(2);
             else { const btn = $('.botBtnBox .save'); if (btn) btn.click(); }
+
+            // 等待并点击 layui 确认弹窗的"确定"按钮
+            await clickLayuiConfirm();
         } else if (result === 'skip') {
             state.skip++; setBatch(state);
             goBackToList();
         } else {
             clearBatch();
             goBackToList();
+        }
+    }
+
+    async function clickLayuiConfirm() {
+        // layui 弹窗出现需要时间，轮询等待
+        for (let i = 0; i < 20; i++) {
+            await sleep(500);
+            const btn = document.querySelector('.layui-layer-btn0');
+            if (btn) {
+                btn.click();
+                return;
+            }
         }
     }
 
@@ -393,12 +410,16 @@
             const pending = findPendingLinks();
             if (pending.length > 0) {
                 createPanel();
-                continueOnListPage();
+                // 只有当批量任务进行中（从表单页返回）才自动继续
+                // 首次打开只创建面板，等用户点按钮
+                const state = getBatch();
+                if (state && state.active) {
+                    continueOnListPage();
+                }
                 return;
             }
 
             // 优先级2：有实际评教题目（.testBox.groupTarget）→ 表单页
-            // 注意：不能只看 #formId，列表页上也可能有 formId 元素
             if ($('.testBox.groupTarget')) {
                 processFormPage();
                 return;
