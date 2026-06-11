@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         超星学习通一键评教
 // @namespace    https://five-plus-one.github.io/ChaoxingXuexitongAutoEvaluationTeaching/
-// @version      2.6.0
+// @version      2.7.0
 // @description  批量自动评教，打开表单页自动填答，确认后提交
 // @author       five-plus-one
 // @match        *://*.chaoxing.com/*
@@ -319,7 +319,7 @@
     function startBatch() {
         const items = findPendingLinks();
         if (items.length === 0) { showToast('没有待评价的项目', 'warn'); return; }
-        setBatch({ active: true, total: items.length, done: 0, skip: 0, currentTeacher: items[0].teacher, currentCourse: items[0].course });
+        setBatch({ active: true, total: items.length, done: 0, skip: 0, targetPage: 1, currentTeacher: items[0].teacher, currentCourse: items[0].course });
         showToast(`开始：共 ${items.length} 个`, 'info', 2000);
         setTimeout(() => items[0].link.click(), 600);
     }
@@ -384,14 +384,32 @@
 
     /* ── 列表页继续（支持翻页） ───────────────────────────── */
 
+    function goToPage(page) {
+        // 直接修改 currentPageNo 并提交表单
+        const input = document.getElementById('currentPageNo');
+        if (input) input.value = page;
+        if (typeof submitForm === 'function') submitForm();
+        else { const form = document.getElementById('formId'); if (form) form.submit(); }
+    }
+
     async function continueOnListPage() {
         const state = getBatch();
         if (!state || !state.active) return;
 
+        // 检查当前页是否是目标页，不是就跳过去
+        const currentPageInput = document.getElementById('currentPageNo');
+        const currentPage = currentPageInput ? parseInt(currentPageInput.value) || 1 : 1;
+        const target = state.targetPage || 1;
+
+        if (currentPage !== target) {
+            showToast(`跳转到第 ${target} 页...`, 'info', 1500);
+            goToPage(target);
+            return; // 页面会刷新，脚本会重新 init
+        }
+
         const pending = findPendingLinks();
 
         if (pending.length > 0) {
-            // 当前页有待评价项，处理第一个
             updatePanelStats();
             state.currentTeacher = pending[0].teacher;
             state.currentCourse = pending[0].course;
@@ -402,20 +420,12 @@
             return;
         }
 
-        // 当前页没有待评价项，尝试翻到下一页
-        const nextPageBtn = document.querySelector('.xl-nextPage');
-        if (nextPageBtn && !nextPageBtn.classList.contains('xl-disabled')) {
-            showToast('当前页已完成，翻到下一页...', 'info', 1500);
-            nextPageBtn.click();
-            await sleep(2000);
-            continueOnListPage();
-            return;
-        }
-
-        // 没有下一页了，完成
-        clearBatch();
-        showToast(`批量评教完成！完成 ${state.done} 个，跳过 ${state.skip} 个`, 'success', 5000);
-        updatePanelStats();
+        // 当前页没有待评项，翻到下一页
+        state.targetPage = target + 1;
+        setBatch(state);
+        showToast('当前页已完成，翻到下一页...', 'info', 1500);
+        goToPage(target + 1);
+        // 页面刷新后脚本会重新 init，自动继续
     }
 
     /* ── Init：优先检测待评价链接，再检测表单 ────────────── */
