@@ -405,30 +405,28 @@
     /* ── Init：优先检测待评价链接，再检测表单 ────────────── */
 
     async function init() {
-        for (let attempt = 0; attempt < 30; attempt++) {
-            // 优先级1：有待评价链接 → 列表页
-            const pending = findPendingLinks();
-            if (pending.length > 0) {
-                createPanel();
-                // 只有当批量任务进行中（从表单页返回）才自动继续
-                // 首次打开只创建面板，等用户点按钮
-                const state = getBatch();
-                if (state && state.active) {
-                    continueOnListPage();
-                }
-                return;
-            }
-
-            // 优先级2：有实际评教题目（.testBox.groupTarget）→ 表单页
-            if ($('.testBox.groupTarget')) {
+        // 检查是否在表单页（从列表页跳转过来的，batch state 有效）
+        if ($('.testBox.groupTarget')) {
+            const state = getBatch();
+            if (state && state.active) {
                 processFormPage();
                 return;
             }
+        }
 
+        // 检测列表页
+        for (let attempt = 0; attempt < 30; attempt++) {
+            const pending = findPendingLinks();
+            if (pending.length > 0) {
+                // 列表页：清除旧的 batch 状态，只显示面板等用户操作
+                clearBatch();
+                createPanel();
+                return;
+            }
             await sleep(500);
         }
 
-        // 轮询结束仍未找到内容，显示提示
+        // 轮询结束
         if (window.parent === window) {
             showToast('请先点击左侧"评价问卷"进入评教列表', 'warn', 5000);
         }
