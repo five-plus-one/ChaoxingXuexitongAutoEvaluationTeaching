@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>超星学习通一键评教</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+            background: #f8f9fa; color: #333; line-height: 1.6;
+        }
+        .hero {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #fff; padding: 80px 20px 60px; text-align: center;
+        }
+        .hero h1 { font-size: 2.5em; margin-bottom: 16px; font-weight: 700; }
+        .hero p { font-size: 1.2em; opacity: .9; margin-bottom: 32px; max-width: 600px; margin-left: auto; margin-right: auto; }
+        .hero .badges { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; margin-bottom: 24px; }
+        .hero .badge {
+            display: inline-block; padding: 6px 16px; border-radius: 20px;
+            background: rgba(255,255,255,.2); font-size: .9em; backdrop-filter: blur(4px);
+        }
+        .install-btn {
+            display: inline-block; padding: 16px 40px; border-radius: 12px;
+            background: #fff; color: #764ba2; font-size: 1.1em; font-weight: 700;
+            text-decoration: none; transition: transform .2s, box-shadow .2s;
+            box-shadow: 0 4px 20px rgba(0,0,0,.15);
+        }
+        .install-btn:hover { transform: translateY(-2px); box-shadow: 0 8px 30px rgba(0,0,0,.2); }
+        .container { max-width: 900px; margin: 0 auto; padding: 40px 20px; }
+        .section { margin-bottom: 48px; }
+        .section h2 {
+            font-size: 1.6em; margin-bottom: 20px; color: #333;
+            padding-bottom: 12px; border-bottom: 3px solid #667eea;
+            display: inline-block;
+        }
+        .features { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 20px; }
+        .feature-card {
+            background: #fff; border-radius: 12px; padding: 24px;
+            box-shadow: 0 2px 12px rgba(0,0,0,.06); transition: transform .2s;
+        }
+        .feature-card:hover { transform: translateY(-4px); }
+        .feature-card .icon { font-size: 2em; margin-bottom: 12px; }
+        .feature-card h3 { font-size: 1.1em; margin-bottom: 8px; }
+        .feature-card p { font-size: .9em; color: #666; }
+        .steps { counter-reset: step; }
+        .step {
+            display: flex; gap: 20px; margin-bottom: 24px; align-items: flex-start;
+        }
+        .step::before {
+            counter-increment: step; content: counter(step);
+            flex-shrink: 0; width: 40px; height: 40px; border-radius: 50%;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: #fff; display: flex; align-items: center; justify-content: center;
+            font-weight: 700; font-size: 1.1em;
+        }
+        .step-content { flex: 1; }
+        .step-content h3 { font-size: 1.05em; margin-bottom: 4px; }
+        .step-content p { font-size: .9em; color: #666; }
+        .step-content code {
+            background: #f0f0f0; padding: 2px 8px; border-radius: 4px;
+            font-size: .85em; font-family: 'Cascadia Code', 'Fira Code', monospace;
+        }
+        .screenshot {
+            background: #fff; border-radius: 12px; padding: 20px;
+            box-shadow: 0 2px 12px rgba(0,0,0,.06); margin-bottom: 20px;
+        }
+        .screenshot .panel-demo {
+            background: #fafafa; border-radius: 8px; padding: 16px;
+            border: 1px solid #eee; font-size: .9em;
+        }
+        .panel-demo .demo-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #fff; padding: 10px 14px; border-radius: 8px 8px 0 0;
+            font-weight: 600; margin: -16px -16px 12px; font-size: .95em;
+        }
+        .panel-demo .demo-stats { display: flex; gap: 12px; margin-bottom: 12px; }
+        .panel-demo .demo-stats span {
+            flex: 1; text-align: center; padding: 8px; border-radius: 6px;
+            background: #f5f5f5; font-size: .85em;
+        }
+        .panel-demo .demo-stats .ok { background: #f6ffed; color: #52c41a; }
+        .panel-demo .demo-btn {
+            display: inline-block; padding: 10px 24px; border-radius: 6px;
+            background: #667eea; color: #fff; font-weight: 600; font-size: .9em;
+        }
+        .panel-demo .demo-log {
+            margin-top: 12px; background: #fafafa; border-radius: 6px;
+            padding: 10px; font-family: monospace; font-size: .8em;
+            color: #666; line-height: 1.8;
+        }
+        .panel-demo .demo-log .ok { color: #52c41a; }
+        footer {
+            text-align: center; padding: 30px 20px; color: #999; font-size: .85em;
+            border-top: 1px solid #eee;
+        }
+        footer a { color: #667eea; text-decoration: none; }
+        footer a:hover { text-decoration: underline; }
+        @media (max-width: 640px) {
+            .hero h1 { font-size: 1.8em; }
+            .hero p { font-size: 1em; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="hero">
+    <h1>超星学习通一键评教</h1>
+    <p>批量自动完成评教，一键给所有教师最好的评价并提交，告别重复操作</p>
+    <div class="badges">
+        <span class="badge">Tampermonkey 油猴脚本</span>
+        <span class="badge">全自动批量处理</span>
+        <span class="badge">智能识别题型</span>
+    </div>
+    <a class="install-btn" href="chaoxing-auto-eval.user.js">一键安装油猴脚本</a>
+</div>
+
+<div class="container">
+
+    <div class="section">
+        <h2>功能特性</h2>
+        <div class="features">
+            <div class="feature-card">
+                <div class="icon">🚀</div>
+                <h3>批量处理</h3>
+                <p>自动识别所有待评价教师，逐个完成评教并提交，无需手动操作</p>
+            </div>
+            <div class="feature-card">
+                <div class="icon">🎯</div>
+                <h3>智能填答</h3>
+                <p>自动识别单选、多选、文本等题型，选择最佳评价选项</p>
+            </div>
+            <div class="feature-card">
+                <div class="icon">🛡️</div>
+                <h3>安全可靠</h3>
+                <p>可随时停止，提交前自动检查，支持失败重试</p>
+            </div>
+            <div class="feature-card">
+                <div class="icon">📊</div>
+                <h3>实时进度</h3>
+                <p>悬浮面板实时显示评教进度、成功/失败统计</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="section">
+        <h2>使用方法</h2>
+        <div class="screenshot">
+            <div class="panel-demo">
+                <div class="demo-header">📋 超星一键评教</div>
+                <div class="demo-stats">
+                    <span>待评: <b>8</b></span>
+                    <span class="ok">完成: <b>3</b></span>
+                    <span>失败: <b>0</b></span>
+                </div>
+                <div class="demo-btn">▶ 开始批量评教</div>
+                <div class="demo-log">
+                    [10:30:01] 发现 8 个待评价项目，开始处理...<br>
+                    [10:30:02] [1/8] 王一操 - 高等数学BⅡ<br>
+                    [10:30:03] &nbsp;&nbsp;✓ 提交成功 (得分: 100)<br>
+                    [10:30:05] [2/8] 部非 - 大学物理AI<br>
+                    [10:30:06] &nbsp;&nbsp;✓ 提交成功 (得分: 100)<br>
+                    [10:30:08] [3/8] 冯林 - 脑洞大开背后的创新思维<br>
+                    <span class="ok">[10:30:09] &nbsp;&nbsp;✓ 提交成功 (得分: 100)</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="steps">
+            <div class="step">
+                <div class="step-content">
+                    <h3>安装 Tampermonkey</h3>
+                    <p>在 Chrome/Edge/Firefox 浏览器中安装 <a href="https://www.tampermonkey.net/" target="_blank">Tampermonkey</a> 扩展</p>
+                </div>
+            </div>
+            <div class="step">
+                <div class="step-content">
+                    <h3>安装脚本</h3>
+                    <p>点击页面顶部的「一键安装油猴脚本」按钮，确认安装</p>
+                </div>
+            </div>
+            <div class="step">
+                <div class="step-content">
+                    <h3>登录超星学习通</h3>
+                    <p>打开 <a href="https://i.chaoxing.com" target="_blank">i.chaoxing.com</a> 并登录，进入评教列表页面</p>
+                </div>
+            </div>
+            <div class="step">
+                <div class="step-content">
+                    <h3>一键评教</h3>
+                    <p>页面右下角会出现控制面板，点击「开始批量评教」即可自动完成所有评价</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="section">
+        <h2>注意事项</h2>
+        <div class="feature-card">
+            <ul style="padding-left: 20px; color: #666; line-height: 2;">
+                <li>评教提交后无法修改，请确认无误后再操作</li>
+                <li>脚本会自动选择最高评价，如需自定义请手动操作</li>
+                <li>如遇敏感词检测，脚本会自动跳过并提示</li>
+                <li>建议在网络稳定的环境下使用</li>
+                <li>脚本仅供学习交流使用</li>
+            </ul>
+        </div>
+    </div>
+
+</div>
+
+<footer>
+    <p>
+        <a href="https://github.com/five-plus-one/ChaoxingXuexitongAutoEvaluationTeaching" target="_blank">GitHub 仓库</a>
+        &nbsp;·&nbsp; MIT License
+    </p>
+</footer>
+
+</body>
+</html>
